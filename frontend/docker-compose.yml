@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    environment:
+      - NODE_ENV=production
+    networks:
+      - invoice-network
+    depends_on:
+      - invoice-ingestion
+      - validation
+      - exception-handling
+      - payment-orchestration
+
+networks:
+  invoice-network:
+    external: true

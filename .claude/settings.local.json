@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mvn clean compile:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(test:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker exec:*)",
+      "Bash(npm install)",
+      "Bash(npm run dev:*)",
+      "Bash(npm install:*)",
+      "Bash(mvn spring-boot:run:*)",
+      "Bash(mvn clean install:*)",
+      "Bash(mvn dependency:tree:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

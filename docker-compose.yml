@@ -1,0 +1,280 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database with multi-schema support
+  postgres:
+    image: postgres:15-alpine
+    container_name: invoice-mgmt-postgres
+    environment:
+      POSTGRES_DB: invoice_management_prod
+      POSTGRES_USER: invoice_app
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-invoice_secure_password_123}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/database/init-database.sql:/docker-entrypoint-initdb.d/01-init-database.sql
+      # Tenant schemas will be created dynamically by application
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U invoice_app -d invoice_management_prod"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - invoice-network
+    restart: unless-stopped
+
+  # PgVector for ML similarity search (exception handling)
+  pgvector:
+    image: ankane/pgvector:latest
+    container_name: invoice-mgmt-pgvector
+    environment:
+      POSTGRES_DB: vector_db
+      POSTGRES_USER: vector_user
+      POSTGRES_PASSWORD: ${VECTOR_DB_PASSWORD:-vector_secure_password_123}
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgvector_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vector_user -d vector_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - invoice-network
+    restart: unless-stopped
+
+  # LocalStack for AWS S3 simulation (document storage)
+  localstack:
+    image: localstack/localstack:latest
+    container_name: invoice-mgmt-localstack
+    environment:
+      SERVICES: s3
+      AWS_DEFAULT_REGION: us-east-1
+      EDGE_PORT: 4566
+      DATA_DIR: /tmp/localstack/data
+    ports:
+      - "4566:4566"
+    volumes:
+      - localstack_data:/tmp/localstack
+      - ./infrastructure/localstack/init-aws.sh:/etc/localstack/init/ready.d/init-aws.sh
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - invoice-network
+    restart: unless-stopped
+
+  # Spring Boot - Invoice Ingestion Service
+  invoice-ingestion-service:
+    build:
+      context: .
+      dockerfile: invoice-ingestion/Dockerfile
+    container_name: invoice-mgmt-ingestion
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/invoice_management_prod
+      SPRING_DATASOURCE_USERNAME: invoice_app
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-invoice_secure_password_123}
+      AWS_S3_ENDPOINT: http://localstack:4566
+      AWS_S3_BUCKET: invoice-documents
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: us-east-1
+      PYTHON_AI_BASE_URL: http://document-extraction-service:8001
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    networks:
+      - invoice-network
+    restart: unless-stopped
+    # Uncomment when Dockerfile is created
+    # profiles:
+    #   - spring-boot
+
+  # Spring Boot - Validation Service
+  validation-service:
+    build:
+      context: .
+      dockerfile: validation/Dockerfile
+    container_name: invoice-mgmt-validation
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: invoice_management_prod
+      DB_USERNAME: invoice_app
+      DB_PASSWORD: ${DB_PASSWORD:-invoice_secure_password_123}
+      SAP_API_BASE_URL: ${SAP_API_URL:-http://sap-mock:1080}
+      SAP_USERNAME: ${SAP_USERNAME:-}
+      SAP_PASSWORD: ${SAP_PASSWORD:-}
+      PORT: 8082
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - invoice-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 3s
+      start_period: 60s
+      retries: 3
+    # profiles:
+    #   - spring-boot
+
+  # Spring Boot - Exception Handling Service
+  exception-handling-service:
+    build:
+      context: .
+      dockerfile: exception-handling/Dockerfile
+    container_name: invoice-mgmt-exception
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/invoice_management_prod
+      SPRING_DATASOURCE_USERNAME: invoice_app
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-invoice_secure_password_123}
+      PYTHON_ML_BASE_URL: http://ml-resolution-service:8002
+    ports:
+      - "8083:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ml-resolution-service:
+        condition: service_healthy
+    networks:
+      - invoice-network
+    restart: unless-stopped
+    # profiles:
+    #   - spring-boot
+
+  # Spring Boot - Payment Orchestration Service (Saga Pattern)
+  payment-orchestration-service:
+    build:
+      context: .
+      dockerfile: payment-orchestration/Dockerfile
+    container_name: invoice-mgmt-payment
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/invoice_management_prod
+      SPRING_DATASOURCE_USERNAME: invoice_app
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-invoice_secure_password_123}
+      SAP_API_BASE_URL: http://sap-mock:1080
+      SAP_API_USERNAME: sap_user
+      SAP_API_PASSWORD: sap_pass
+      PAYMENT_GATEWAY_BASE_URL: http://payment-gateway-mock:1080
+      PAYMENT_GATEWAY_API_KEY: gateway-api-key-12345
+    ports:
+      - "8084:8084"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - invoice-network
+    restart: unless-stopped
+    # profiles:
+    #   - spring-boot
+
+  # Python - Document Extraction Service (Azure OpenAI)
+  document-extraction-service:
+    build:
+      context: ./ai-services/document-extraction
+      dockerfile: Dockerfile
+    container_name: invoice-mgmt-ai-extraction
+    environment:
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY}
+      AZURE_OPENAI_DEPLOYMENT_NAME: ${AZURE_OPENAI_DEPLOYMENT_NAME:-gpt-4}
+      AWS_S3_ENDPOINT: http://localstack:4566
+      AWS_S3_BUCKET: invoice-documents
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      DATABASE_URL: postgresql://invoice_app:${DB_PASSWORD:-invoice_secure_password_123}@postgres:5432/invoice_management_prod
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    networks:
+      - invoice-network
+    restart: unless-stopped
+    # profiles:
+    #   - python-ai
+
+  # Python - ML Resolution Service (Exception Handling)
+  ml-resolution-service:
+    build:
+      context: ./ai-services/ml-resolution
+      dockerfile: Dockerfile
+    container_name: invoice-mgmt-ai-resolution
+    environment:
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY}
+      AZURE_OPENAI_DEPLOYMENT_NAME: ${AZURE_OPENAI_DEPLOYMENT_NAME:-gpt-4}
+      VECTOR_DB_URL: postgresql://vector_user:${VECTOR_DB_PASSWORD:-vector_secure_password_123}@pgvector:5432/vector_db
+      DATABASE_URL: postgresql://invoice_app:${DB_PASSWORD:-invoice_secure_password_123}@postgres:5432/invoice_management_prod
+    ports:
+      - "8002:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pgvector:
+        condition: service_healthy
+    networks:
+      - invoice-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8002/health')"]
+      interval: 30s
+      timeout: 3s
+      start_period: 20s
+      retries: 3
+    # profiles:
+    #   - python-ai
+
+  # SAP Mock Service (for testing SAP integration)
+  sap-mock:
+    image: mockserver/mockserver:latest
+    container_name: invoice-mgmt-sap-mock
+    environment:
+      MOCKSERVER_INITIALIZATION_JSON_PATH: /config/sap-mock-expectations.json
+    ports:
+      - "8090:1080"
+    volumes:
+      - ./infrastructure/mocks/sap-mock-expectations.json:/config/sap-mock-expectations.json
+    networks:
+      - invoice-network
+    restart: unless-stopped
+    profiles:
+      - testing
+
+# Networks
+networks:
+  invoice-network:
+    driver: bridge
+    name: invoice-network
+
+# Volumes for data persistence
+volumes:
+  postgres_data:
+    driver: local
+    name: invoice-mgmt-postgres-data
+  pgvector_data:
+    driver: local
+    name: invoice-mgmt-pgvector-data
+  localstack_data:
+    driver: local
+    name: invoice-mgmt-localstack-data

@@ -1,0 +1,145 @@
+[
+  {
+    "httpRequest": {
+      "method": "GET",
+      "path": "/api/procurement/purchase-orders/.*"
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "PurchaseOrder": "4500000001",
+        "PurchaseOrderDate": "2024-01-15",
+        "Supplier": "VENDOR-001",
+        "DocumentCurrency": "USD",
+        "TotalNetAmount": "5000.00",
+        "PurchaseOrderStatus": "OPEN",
+        "PurchaseOrderItem": [
+          {
+            "PurchaseOrderItem": "00010",
+            "Material": "MAT-12345",
+            "PurchaseOrderItemText": "Office Supplies - Paper",
+            "OrderQuantity": "100.00",
+            "NetPriceAmount": "25.00",
+            "NetAmount": "2500.00",
+            "DocumentCurrency": "USD"
+          },
+          {
+            "PurchaseOrderItem": "00020",
+            "Material": "MAT-67890",
+            "PurchaseOrderItemText": "Office Supplies - Pens",
+            "OrderQuantity": "50.00",
+            "NetPriceAmount": "50.00",
+            "NetAmount": "2500.00",
+            "DocumentCurrency": "USD"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "GET",
+      "path": "/api/procurement/goods-receipts/.*"
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "MaterialDocument": "5000000001",
+        "PurchaseOrder": "4500000001",
+        "PostingDate": "2024-01-20",
+        "CreatedBy": "WAREHOUSE_USER",
+        "MaterialDocumentItem": [
+          {
+            "MaterialDocumentItem": "0001",
+            "Material": "MAT-12345",
+            "QuantityInEntryUnit": "98.00",
+            "StorageLocation": "WH01"
+          },
+          {
+            "MaterialDocumentItem": "0002",
+            "Material": "MAT-67890",
+            "QuantityInEntryUnit": "50.00",
+            "StorageLocation": "WH01"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "GET",
+      "path": "/api/procurement/purchase-orders/.*/goods-receipts/latest"
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "MaterialDocument": "5000000001",
+        "PurchaseOrder": "4500000001",
+        "PostingDate": "2024-01-20",
+        "CreatedBy": "WAREHOUSE_USER",
+        "MaterialDocumentItem": [
+          {
+            "MaterialDocumentItem": "0001",
+            "Material": "MAT-12345",
+            "QuantityInEntryUnit": "98.00",
+            "StorageLocation": "WH01"
+          },
+          {
+            "MaterialDocumentItem": "0002",
+            "Material": "MAT-67890",
+            "QuantityInEntryUnit": "50.00",
+            "StorageLocation": "WH01"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "POST",
+      "path": "/api/finance/invoice-posting"
+    },
+    "httpResponse": {
+      "statusCode": 201,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "AccountingDocument": "1900000001",
+        "FiscalYear": "2024",
+        "CompanyCode": "1000",
+        "PostingDate": "2024-01-25",
+        "DocumentDate": "2024-01-22",
+        "Status": "Posted",
+        "Message": "Document posted successfully"
+      }
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "POST",
+      "path": "/api/finance/gl-posting"
+    },
+    "httpResponse": {
+      "statusCode": 201,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "GLDocument": "1900000002",
+        "FiscalYear": "2024",
+        "PostingResult": "SUCCESS",
+        "Message": "GL document posted successfully"
+      }
+    }
+  }
+]

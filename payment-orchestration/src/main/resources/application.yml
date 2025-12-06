@@ -1,0 +1,47 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: payment-orchestration-service
+  
+  datasource:
+    url: jdbc:postgresql://localhost:5432/invoice_management
+    username: invoice_user
+    password: invoice_pass
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+  
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        default_schema: common
+
+# SAP Integration
+sap:
+  api:
+    base-url: http://localhost:9090
+    username: sap_user
+    password: sap_pass
+
+# Payment Gateway Integration
+payment:
+  gateway:
+    base-url: http://localhost:9091
+    api-key: gateway-api-key-12345
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.invoicemanagement.payment: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE

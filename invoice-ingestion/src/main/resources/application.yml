@@ -1,0 +1,68 @@
+spring:
+  application:
+    name: invoice-ingestion-service
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/invoice_management_prod}
+    username: ${SPRING_DATASOURCE_USERNAME:invoice_app}
+    password: ${SPRING_DATASOURCE_PASSWORD:invoice_secure_password_123}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        default_schema: common  # Tenant schema set dynamically via TenantContext
+
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+
+# AWS S3 Configuration
+aws:
+  region: ${AWS_REGION:us-east-1}
+  access-key-id: ${AWS_ACCESS_KEY_ID:test}
+  secret-access-key: ${AWS_SECRET_ACCESS_KEY:test}
+  s3:
+    endpoint: ${AWS_S3_ENDPOINT:http://localhost:4566}  # LocalStack for local dev
+    bucket-name: ${AWS_S3_BUCKET:invoice-documents}
+
+# Python AI Service Configuration
+python:
+  extraction-service:
+    base-url: ${PYTHON_AI_BASE_URL:http://localhost:8001}
+
+# Server Configuration
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+# Logging
+logging:
+  level:
+    root: INFO
+    com.invoicemanagement: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.springframework.web: DEBUG
+
+# Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
